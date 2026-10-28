@@ -426,7 +426,7 @@
 <body>
   <div class="page-shell">
     <main class="product-layout">
-      <h1 class="product-title">The twin bench -<br>furniture only</h1>
+      <h1 class="product-title">The ewe -<br>furniture only</h1>
 
       <div class="product-grid">
         <section class="viewer-card" aria-label="Product viewer section">
@@ -520,7 +520,6 @@
   <script>
     const modelViewer = document.querySelector('#cupboard-viewer');
     const spinner = document.querySelector('#viewer-spinner');
-    const viewControls = document.querySelector('#view-controls');
 
     let selectedModel = 'Ewe.glb';
     let selectedPackage = 'Furniture Only';
@@ -591,9 +590,7 @@
       'Twin%20Bench%20Cushion.glb'
     ]);
 
-    const ROTATION_STEP = 45;
     const DEFAULT_ORBIT = MODEL_DEFAULT_ORBIT[selectedModel];
-
     let initialLoadDone = false;
     let userHasManualView = false;
     let savedOrbitToRestore = null;
@@ -626,29 +623,20 @@
 
     function syncCushionButtons() {
       const isFullConversion = selectedPackage === 'Full Conversion';
-      const withoutCushionBtn = document.querySelector('.cushion-btn[data-cushion="Without%20Cushions"]');
-      const withCushionBtn = document.querySelector('.cushion-btn[data-cushion="Cushions"]');
-
       document.querySelectorAll('.cushion-btn').forEach((button) => {
-        const isWithout = button.getAttribute('data-cushion') === 'Without%20Cushions';
-        const shouldDisable = isFullConversion && isWithout;
+        const value = button.getAttribute('data-cushion');
+        const shouldDisable = isFullConversion && value === 'Without%20Cushions';
+        const isSelected = value === selectedCushions && !shouldDisable;
+
         button.disabled = shouldDisable;
         button.classList.toggle('disabled', shouldDisable);
-        if (shouldDisable) {
-          button.classList.remove('active');
-        }
+        button.classList.toggle('active', isSelected);
       });
 
       if (isFullConversion) {
         selectedCushions = 'Cushions';
-        withCushionBtn?.classList.add('active');
-      } else {
-        const shouldBeActive = selectedCushions === 'Cushions' ? withCushionBtn : document.querySelector('.cushion-btn[data-cushion="Without%20Cushions"]');
-        if (shouldBeActive) shouldBeActive.classList.add('active');
-      }
-
-      if (withoutCushionBtn) {
-        withoutCushionBtn.classList.toggle('active', selectedCushions === 'Without%20Cushions' && !isFullConversion);
+        const withButton = document.querySelector('.cushion-btn[data-cushion="Cushions"]');
+        if (withButton) withButton.classList.add('active');
       }
     }
 
@@ -781,7 +769,7 @@
       if (!titleElement) return;
 
       const layoutName = getLayoutNameFromModel(selectedModel);
-      const friendlyLayout = layoutName === 'Twin Bench' ? 'The twin bench' : layoutName === 'Belted Ewe' ? 'The belted ewe' : 'The ewe shape';
+      const friendlyLayout = layoutName === 'Twin Bench' ? 'The twin bench' : layoutName === 'Belted Ewe' ? 'The belted ewe' : 'The ewe';
       titleElement.innerHTML = `${friendlyLayout} -<br>${selectedPackage.toLowerCase()}`;
     }
 
@@ -1057,34 +1045,48 @@
     document.querySelectorAll('[data-rotate]').forEach((button) => {
       button.addEventListener('click', (e) => {
         const direction = e.currentTarget.getAttribute('data-rotate');
-        rotateBy(direction === 'left' ? -45 : 45);
+        const deg = direction === 'left' ? -45 : 45;
+        try {
+          const orbit = modelViewer.cameraOrbit || DEFAULT_ORBIT || '135deg 75deg auto';
+          const parts = orbit.trim().split(/\s+/);
+          const azMatch = parts[0].match(/(-?[0-9.]+)deg/);
+          if (!azMatch) return;
+          let azValue = parseFloat(azMatch[1]);
+          azValue = (azValue + deg) % 360;
+          if (azValue < 0) azValue += 360;
+          modelViewer.cameraOrbit = `${azValue}deg ${parts[1]} ${parts[2]}`;
+          userHasManualView = true;
+          savedOrbitToRestore = modelViewer.cameraOrbit;
+        } catch (err) {
+          console.warn('rotateBy error:', err);
+        }
       });
     });
 
     document.getElementById('request-quote-btn')?.addEventListener('click', () => {
       const modal = document.getElementById('form-modal');
       const iframe = document.getElementById('form-modal-iframe');
-      const spinner = document.getElementById('form-modal-spinner');
+      const spinner2 = document.getElementById('form-modal-spinner');
 
-      if (!modal || !iframe || !spinner) return;
+      if (!modal || !iframe || !spinner2) return;
 
       iframe.src = getFormUrlForSelectedModel();
       modal.style.display = 'flex';
       iframe.onload = () => {
-        spinner.style.display = 'none';
+        spinner2.style.display = 'none';
       };
     });
 
     document.getElementById('form-modal-close')?.addEventListener('click', () => {
       const modal = document.getElementById('form-modal');
       const iframe = document.getElementById('form-modal-iframe');
-      const spinner = document.getElementById('form-modal-spinner');
+      const spinner2 = document.getElementById('form-modal-spinner');
 
-      if (!modal || !iframe || !spinner) return;
+      if (!modal || !iframe || !spinner2) return;
 
       modal.style.display = 'none';
       iframe.src = '';
-      spinner.style.display = 'flex';
+      spinner2.style.display = 'flex';
     });
 
     updateProductTitle();
