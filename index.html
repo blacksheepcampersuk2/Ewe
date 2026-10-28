@@ -586,6 +586,12 @@
       'Belted%20Ewe.glb': 'Belted%20Ewe%20Cushion.glb'
     };
 
+    const MODEL_FEATURE_FILES = {
+      'Twin%20Bench.glb': 'twin-bench.csv',
+      'Ewe.glb': 'ewe.csv',
+      'Belted%20Ewe.glb': 'belted-ewe.csv'
+    };
+
     const CUSHION_VARIANT_SWAP_MODELS = new Set([
       'Twin%20Bench%20Cushion.glb'
     ]);
@@ -801,36 +807,61 @@
       }
     }
 
-    function updateCoreFeaturesVisibility() {
+    function parseFeatureCsv(csvText) {
+      const rows = csvText.split(/\r?\n/).filter((line) => line.trim() !== '');
+      const features = [];
+
+      for (const row of rows) {
+        const values = parseCsvRow(row);
+        const feature = values
+          .map((value) => value.trim())
+          .filter((value) => value && value.toLowerCase() !== 'feature')
+          .join(', ');
+
+        if (feature) {
+          features.push(feature.replace(/^\s+|\s+$/g, ''));
+        }
+      }
+
+      return features;
+    }
+
+    async function loadModelFeatures(modelFile = selectedModel) {
+      const featureFile = MODEL_FEATURE_FILES[modelFile] || 'ewe.csv';
+
+      try {
+        const response = await fetch(featureFile);
+        if (!response.ok) throw new Error('Feature CSV could not be loaded');
+        const csvText = await response.text();
+        const features = parseFeatureCsv(csvText);
+        return features;
+      } catch (error) {
+        console.warn('Could not load feature CSV for', modelFile, error);
+        return [];
+      }
+    }
+
+    async function updateCoreFeaturesVisibility() {
       const coreFeaturesBox = document.getElementById('core-features');
       if (!coreFeaturesBox) return;
 
-      if (selectedPackage === 'Full Conversion') {
-        coreFeaturesBox.innerHTML = `
-          <div class="core-features-title">Core Features:</div>
-          <ul class="core-features-list">
-            <li>Van preparation - This includes removing the bulkhead, taking out any pre-existing furniture, or cleaning the van, ready to be converted.</li>
-            <li>Sound deadening &amp; Insulation</li>
-            <li>Plywood lining</li>
-            <li>Carpet lining</li>
-            <li>Drivers side sliding window &amp; passenger side fixed window</li>
-            <li>Plywood and heavy duty vinyl flooring</li>
-            <li>Slatted wooden ceiling with LED strip lights</li>
-            <li>A compact but functional kitchen, with an oak worktop, a 50L fridge/freezer, and a range of induction hob and sink options</li>
-            <li>A u-shape seating area that folds out into a large bed, big enough for two. With plenty of storage, and even a designated area to have your own portable toilet.</li>
-            <li>A diesel heater</li>
-            <li>Cushions with your choice of fabric</li>
-            <li>A charging system to keep you batteries charged up, whether that is utilising your vans alternator via DC-DC charging, solar panels, shore power via a hook-up point, or all of the possibilities available in a bespoke conversion.</li>
-            <li>An electrical system to suit your needs, including 12V charging points, ceiling lights, reading lights and 240V plug sockets.</li>
-          </ul>
-        `;
-        coreFeaturesBox.hidden = false;
-        coreFeaturesBox.style.display = 'block';
-      } else {
+      const features = await loadModelFeatures(selectedModel);
+
+      if (!features.length) {
         coreFeaturesBox.hidden = true;
         coreFeaturesBox.style.display = 'none';
         coreFeaturesBox.innerHTML = '';
+        return;
       }
+
+      coreFeaturesBox.innerHTML = `
+        <div class="core-features-title">Core Features:</div>
+        <ul class="core-features-list">
+          ${features.map((feature) => `<li>${feature}</li>`).join('')}
+        </ul>
+      `;
+      coreFeaturesBox.hidden = false;
+      coreFeaturesBox.style.display = 'block';
     }
 
     function getActiveModelFile() {
@@ -948,6 +979,7 @@
       syncDoorButtons();
       syncCushionButtons();
       setWheelbaseForCurrentModel();
+      updateCoreFeaturesVisibility();
 
       if (currentSrcAttr !== targetFileUrl) {
         showSpinnerMessage('Loading model…');
@@ -998,10 +1030,25 @@
           savedOrbitToRestore = null;
         }
 
-        updateConfigurator();
+        if (selectedPackage === 'Full Conversion') {
+          selectedCushions = 'Cushions';
+        }
+
         updateProductTitle();
         updatePriceDisplay();
         updateDescription();
+        updateCoreFeaturesVisibility();
+        updateConfigurator();
+      });
+    });
+
+    document.querySelectorAll('.door-btn').forEach((button) => {
+      button.addEventListener('click', (e) => {
+        const nextDoor = e.target.getAttribute('data-door');
+        if (!nextDoor) return;
+        selectedDoor = nextDoor;
+        syncDoorButtons();
+        applyVariant(selectedDoor);
       });
     });
 
@@ -1018,75 +1065,37 @@
 
     document.querySelectorAll('.cushion-btn').forEach((button) => {
       button.addEventListener('click', (e) => {
-        const cushionValue = e.target.getAttribute('data-cushion');
-        if (!cushionValue || (selectedPackage === 'Full Conversion' && cushionValue === 'Without%20Cushions')) return;
-        selectedCushions = cushionValue;
+        const nextCushion = e.target.getAttribute('data-cushion');
+        if (!nextCushion) return;
+        selectedCushions = nextCushion;
         syncCushionButtons();
+        updatePriceDisplay();
+        updateDescription();
         updateConfigurator();
-        updatePriceDisplay();
-        updateDescription();
-      });
-    });
-
-    document.querySelectorAll('.door-btn').forEach((button) => {
-      button.addEventListener('click', (e) => {
-        const clickedDoor = e.target.getAttribute('data-door');
-        if (!clickedDoor) return;
-
-        selectedDoor = clickedDoor;
-        selectedMaterial = getMaterialFromDoor(clickedDoor);
-        syncDoorButtons();
-        applyVariant(selectedDoor);
-        updatePriceDisplay();
-        updateDescription();
-      });
-    });
-
-    document.querySelectorAll('[data-rotate]').forEach((button) => {
-      button.addEventListener('click', (e) => {
-        const direction = e.currentTarget.getAttribute('data-rotate');
-        const deg = direction === 'left' ? -45 : 45;
-        try {
-          const orbit = modelViewer.cameraOrbit || DEFAULT_ORBIT || '135deg 75deg auto';
-          const parts = orbit.trim().split(/\s+/);
-          const azMatch = parts[0].match(/(-?[0-9.]+)deg/);
-          if (!azMatch) return;
-          let azValue = parseFloat(azMatch[1]);
-          azValue = (azValue + deg) % 360;
-          if (azValue < 0) azValue += 360;
-          modelViewer.cameraOrbit = `${azValue}deg ${parts[1]} ${parts[2]}`;
-          userHasManualView = true;
-          savedOrbitToRestore = modelViewer.cameraOrbit;
-        } catch (err) {
-          console.warn('rotateBy error:', err);
-        }
       });
     });
 
     document.getElementById('request-quote-btn')?.addEventListener('click', () => {
+      const formUrl = getFormUrlForSelectedModel();
       const modal = document.getElementById('form-modal');
       const iframe = document.getElementById('form-modal-iframe');
-      const spinner2 = document.getElementById('form-modal-spinner');
-
-      if (!modal || !iframe || !spinner2) return;
-
-      iframe.src = getFormUrlForSelectedModel();
+      const spinner = document.getElementById('form-modal-spinner');
+      iframe.src = formUrl;
       modal.style.display = 'flex';
-      iframe.onload = () => {
-        spinner2.style.display = 'none';
-      };
+      spinner.style.display = 'flex';
+      iframe.onload = () => spinner.style.display = 'none';
     });
 
     document.getElementById('form-modal-close')?.addEventListener('click', () => {
-      const modal = document.getElementById('form-modal');
-      const iframe = document.getElementById('form-modal-iframe');
-      const spinner2 = document.getElementById('form-modal-spinner');
+      document.getElementById('form-modal').style.display = 'none';
+      document.getElementById('form-modal-iframe').src = '';
+    });
 
-      if (!modal || !iframe || !spinner2) return;
-
-      modal.style.display = 'none';
-      iframe.src = '';
-      spinner2.style.display = 'flex';
+    document.querySelectorAll('[data-rotate]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const direction = button.getAttribute('data-rotate');
+        rotateBy(direction === 'left' ? -30 : 30);
+      });
     });
 
     updateProductTitle();
