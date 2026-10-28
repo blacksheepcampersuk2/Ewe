@@ -551,8 +551,8 @@
           'Without Cushions': { SWB: { Laminate: 1595, 'Hexa ply': 1395 }, LWB: { Laminate: 1795, 'Hexa ply': 1595 } }
         },
         'Belted Ewe': {
-          'With Cushions': { SWB: { Laminate: 0, 'Hexa ply': 0 }, LWB: { Laminate: 0, 'Hexa ply': 0 } },
-          'Without Cushions': { SWB: { Laminate: 0, 'Hexa ply': 0 }, LWB: { Laminate: 0, 'Hexa ply': 0 } }
+          'With Cushions': { SWB: { Laminate: 3500, 'Hexa ply': 3300 }, LWB: { Laminate: 3770, 'Hexa ply': 3570 } },
+          'Without Cushions': { SWB: { Laminate: 2745, 'Hexa ply': 2545 }, LWB: { Laminate: 2945, 'Hexa ply': 2745 } }
         }
       },
       'Full Conversion': {
@@ -601,6 +601,10 @@
     let userHasManualView = false;
     let savedOrbitToRestore = null;
     let priceDataPromise = null;
+
+    function resolveMaterialFromDoor(doorName = selectedDoor) {
+      return doorName === 'Hexa ply' ? 'Hexa ply' : 'Laminate';
+    }
 
     function getFormUrlForSelectedModel() {
       return MODEL_FORM_URLS[selectedModel] || MODEL_FORM_URLS['Twin%20Bench.glb'];
@@ -746,7 +750,7 @@
     }
 
     function getMaterialName() {
-      return selectedMaterial;
+      return resolveMaterialFromDoor(selectedDoor);
     }
 
     function getCurrentVariantInfo(priceData) {
@@ -901,7 +905,7 @@
 
     function applyVariant(name) {
       const doorName = name || selectedDoor;
-      const resolvedMaterial = selectedMaterial || getMaterialFromDoor(doorName);
+      const resolvedMaterial = resolveMaterialFromDoor(doorName);
       const variantBase = resolvedMaterial === 'Hexa ply' ? 'Black' : doorName;
       const variantName = getModelVariantName(variantBase);
 
@@ -1044,11 +1048,14 @@
 
     document.querySelectorAll('.door-btn').forEach((button) => {
       button.addEventListener('click', (e) => {
-        const nextDoor = e.target.getAttribute('data-door');
-        if (!nextDoor) return;
-        selectedDoor = nextDoor;
+        const clickedDoor = e.target.getAttribute('data-door');
+        if (!clickedDoor) return;
+        selectedDoor = clickedDoor;
+        selectedMaterial = resolveMaterialFromDoor(selectedDoor);
         syncDoorButtons();
         applyVariant(selectedDoor);
+        updatePriceDisplay();
+        updateDescription();
       });
     });
 
