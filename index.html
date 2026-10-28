@@ -817,11 +817,13 @@
 
       for (const row of rows) {
         const values = parseCsvRow(row);
-        const feature = values
+        const normalized = values
           .map((value) => value.trim())
-          .filter((value) => value && value.toLowerCase() !== 'feature')
-          .join(', ');
+          .filter((value) => value && value.toLowerCase() !== 'feature' && value.toLowerCase() !== 'conversion features');
 
+        if (normalized.length === 0) continue;
+
+        const feature = normalized.join(', ');
         if (feature) {
           features.push(feature.replace(/^\s+|\s+$/g, ''));
         }
@@ -859,7 +861,7 @@
       }
 
       coreFeaturesBox.innerHTML = `
-        <div class="core-features-title">Core Features:</div>
+        <div class="core-features-title" style="font-weight:800;">Conversion Features</div>
         <ul class="core-features-list">
           ${features.map((feature) => `<li>${feature}</li>`).join('')}
         </ul>
